@@ -4,144 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quest for the Amrita</title>
-    <!-- Tailwind CSS CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <!-- Mysterious Font CDN (Creepster) -->
-    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
     <!-- Babylon.js CDN -->
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <style>
-        .font-mysterious {
-            font-family: 'Creepster', cursive;
-        }
-    </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading-screen" class="fixed inset-0 flex items-center justify-center bg-black z-50">
-        <div class="text-center">
-            <div class="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin mx-auto"></div>
-            <p id="loading-text" class="mt-4 text-white text-2xl font-mysterious">Loading...</p>
-        </div>
-    </div>
-
-    <!-- Game Interface -->
-    <div id="game-interface" class="hidden">
-        <canvas id="renderCanvas" class="w-full h-screen"></canvas>
-        <div class="absolute bottom-0 left-0 right-0 flex justify-center space-x-4 p-4 bg-black bg-opacity-75">
-            <button id="play-btn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 font-mysterious">Play</button>
-            <button id="pause-btn" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 font-mysterious">Pause</button>
-            <button id="save-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-mysterious">Save</button>
-            <button id="continue-btn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 font-mysterious">Continue</button>
-        </div>
-    </div>
+    <!-- Game Canvas -->
+    <canvas id="renderCanvas" style="width: 100%; height: 100vh;"></canvas>
 
     <script>
         // Initialize Babylon.js
         const canvas = document.getElementById('renderCanvas');
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0, 0, 0, 1); // Black background
 
         // Camera
-        const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2, 10, new BABYLON.Vector3(0, 1, 0), scene);
+        const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2, 10, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
         // Light
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 1;
 
-        // Game state
-        let playerMesh, enemyMesh;
-        let isPaused = false;
-
-        // Load assets
+        // Asset Manager to load models
         const assetManager = new BABYLON.AssetsManager(scene);
-        const playerTask = assetManager.addMeshTask("playerTask", "", "./assets/models/", "player.glb");
-        const enemyTask = assetManager.addMeshTask("enemyTask", "", "./assets/models/", "enemy.glb");
 
-        assetManager.onProgress = (remaining, total) => {
-            const progress = (total - remaining) / total;
-            document.getElementById('loading-text').innerText = `Loading... ${Math.round(progress * 100)}%`;
-        };
+        // Updated paths to reflect current location in "assets"
+        const playerTask = assetManager.addMeshTask("playerTask", "", "./assets/", "player.glb");
+        const enemyTask = assetManager.addMeshTask("enemyTask", "", "./assets/", "enemy.glb");
 
-        assetManager.onFinish = () => {
-            document.getElementById('loading-screen').classList.add('hidden');
-            document.getElementById('game-interface').classList.remove('hidden');
-            startGame();
-        };
-
+        // Handle successful loading
         playerTask.onSuccess = (task) => {
-            playerMesh = task.loadedMeshes[0];
+            const playerMesh = task.loadedMeshes[0];
             playerMesh.position = new BABYLON.Vector3(-2, 0, 0);
-            playerMesh.scaling = new BABYLON.Vector3(1, 1, 1);
         };
 
         enemyTask.onSuccess = (task) => {
-            enemyMesh = task.loadedMeshes[0];
+            const enemyMesh = task.loadedMeshes[0];
             enemyMesh.position = new BABYLON.Vector3(2, 0, 0);
-            enemyMesh.scaling = new BABYLON.Vector3(1, 1, 1);
+        };
+
+        // Error handling
+        playerTask.onError = (task, message, exception) => {
+            console.error(`Failed to load player model: ${message}`, exception);
+        };
+
+        enemyTask.onError = (task, message, exception) => {
+            console.error(`Failed to load enemy model: ${message}`, exception);
+        };
+
+        // Load assets and start rendering
+        assetManager.onFinish = () => {
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
         };
 
         assetManager.load();
 
-        // Start game
-        function startGame() {
-            // Basic movement (arrow keys)
-            window.addEventListener('keydown', (e) => {
-                if (!isPaused && playerMesh) {
-                    if (e.key === 'ArrowLeft') playerMesh.position.x -= 0.1;
-                    if (e.key === 'ArrowRight') playerMesh.position.x += 0.1;
-                    if (e.key === 'ArrowUp') playerMesh.position.z -= 0.1;
-                    if (e.key === 'ArrowDown') playerMesh.position.z += 0.1;
-                }
-            });
-
-            // Simple enemy behavior
-            if (enemyMesh) {
-                scene.registerBeforeRender(() => {
-                    if (!isPaused) {
-                        const dist = BABYLON.Vector3.Distance(playerMesh.position, enemyMesh.position);
-                        if (dist < 3) {
-                            enemyMesh.position.x -= 0.01 * (enemyMesh.position.x - playerMesh.position.x) / dist;
-                            enemyMesh.position.z -= 0.01 * (enemyMesh.position.z - playerMesh.position.z) / dist;
-                        }
-                    }
-                });
-            }
-        }
-
-        // Button actions
-        document.getElementById('play-btn').addEventListener('click', () => {
-            isPaused = false;
-            console.log('Game started/resumed');
-        });
-
-        document.getElementById('pause-btn').addEventListener('click', () => {
-            isPaused = true;
-            console.log('Game paused');
-        });
-
-        document.getElementById('save-btn').addEventListener('click', () => {
-            if (playerMesh) {
-                const saveData = { playerPos: playerMesh.position.asArray() };
-                console.log('Game saved:', saveData);
-                // In a real game, save to localStorage or server
-            }
-        });
-
-        document.getElementById('continue-btn').addEventListener('click', () => {
-            isPaused = false;
-            console.log('Game continued');
-        });
-
-        // Render loop
-        engine.runRenderLoop(() => {
-            scene.render();
-        });
-
-        // Resize handling
+        // Handle window resize
         window.addEventListener('resize', () => {
             engine.resize();
         });
